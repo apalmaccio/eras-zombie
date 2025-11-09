@@ -34,7 +34,24 @@ const gameState = {
     mapName: 'Europe - Zombie Invasion'
 };
 
-const colors = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#f4a261', '#d62828', '#003049', '#06aed5', '#7209b7'];
+const colors = [
+    '#e63946', // Bright Red
+    '#457b9d', // Steel Blue
+    '#2a9d8f', // Teal
+    '#e9c46a', // Gold
+    '#f4a261', // Orange
+    '#06aed5', // Cyan
+    '#7209b7', // Purple
+    '#d62828', // Dark Red
+    '#003049', // Navy
+    '#95e1d3', // Mint
+    '#f38181', // Light Red
+    '#aa96da', // Light Purple
+    '#fcbad3', // Pink
+    '#a8d8ea', // Light Blue
+    '#ffcb69', // Yellow
+    '#52b788'  // Green
+];
 let colorIndex = 0;
 
 // Enhanced European map with more territories and proper structure
