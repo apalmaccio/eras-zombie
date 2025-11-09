@@ -35,6 +35,11 @@
         <h2>🛡️ Command</h2>
         <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
         <button id="joinBtn">Join Battle</button>
+        <div id="lobbyInfo" style="display:none;">
+            <div class="stat"><span class="stat-label">Game starts in</span> <span class="stat-value" id="lobbyTimer">60</span>s</div>
+            <div class="stat"><span class="stat-label">Players</span> <span class="stat-value" id="lobbyPlayerCount">0</span></div>
+            <div class="stat"><span class="stat-label">Map</span> <span style="color: #aaa; font-size: 12px;" id="mapName">Europe</span></div>
+        </div>
         <div id="spawnSelect" style="display:none;">
             <p style="color: #aaa; font-size: 13px; margin: 10px 0;">Click a territory in Western Europe to spawn</p>
         </div>
@@ -42,6 +47,7 @@
             <div class="stat"><span class="stat-label">Territory</span> <span class="stat-value" id="territory">0</span></div>
             <div class="stat"><span class="stat-label">Population</span> <span class="stat-value" id="population">0</span></div>
             <div class="stat"><span class="stat-label">Army</span> <span class="stat-value" id="army">0</span></div>
+            <div class="stat"><span class="stat-label">💰 Gold</span> <span class="stat-value" id="gold">100</span></div>
             <div class="stat" style="margin-top: 15px;">
                 <span class="stat-label">Troop %</span>
                 <span class="stat-value" id="troopPercent">50</span>%
@@ -53,10 +59,14 @@
     <div id="controls" style="display:none;">
         <div class="control-text">
             <strong>LEFT CLICK</strong> to expand (sand-fill)<br>
-            <strong>RIGHT CLICK</strong> own territory to build defense (30 troops)<br>
+            <strong>RIGHT CLICK</strong> own territory for build menu<br>
             <strong>SLIDER</strong> controls % troops per attack<br>
-            <strong>PVE:</strong> Defend against zombies!
+            <strong>PVE:</strong> Defeat AI factions & zombies!
         </div>
+    </div>
+    <div id="buildMenu" style="display:none; position: absolute; background: rgba(10, 17, 40, 0.98); border: 2px solid #d62828; border-radius: 8px; padding: 15px; min-width: 200px; box-shadow: 0 0 20px rgba(214, 40, 40, 0.5); z-index: 1000;">
+        <h3 style="color: #d62828; margin: 0 0 10px 0; font-size: 14px;">BUILD MENU</h3>
+        <div id="buildOptions"></div>
     </div>
     <div id="zoomControls"><button class="zoom-btn" id="zoomOut">−</button><button class="zoom-btn" id="zoomIn">+</button></div>
     <script>
@@ -65,10 +75,18 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
         let socket, playerId = null;
-        let gameState = { players: {}, territories: [], activeAttacks: [] };
+        let gameState = { players: {}, territories: [], activeAttacks: [], aiFactions: {}, gamePhase: 'lobby', lobbyTimer: 60, mapName: 'Europe' };
         let zoom = 1.0, offsetX = 0, offsetY = 0;
         let selectingSpawn = false;
         let troopPercentage = 50;
+        let selectedTerritory = null;
+
+        const BUILDING_TYPES = {
+            city: { cost: 100, name: 'City', emoji: '🏛️', desc: '+5 gold/tick, +20 pop' },
+            port: { cost: 150, name: 'Port', emoji: '⚓', desc: '+10 gold/tick, enables trade' },
+            train: { cost: 120, name: 'Train Station', emoji: '🚂', desc: '1.5x expansion speed' },
+            factory: { cost: 200, name: 'Factory', emoji: '🏭', desc: '1.3x army strength' }
+        };
         
         document.getElementById('zoomIn').onclick = () => { zoom = Math.min(zoom * 1.2, 3.0); };
         document.getElementById('zoomOut').onclick = () => { zoom = Math.max(zoom / 1.2, 0.5); };
@@ -91,8 +109,7 @@
             socket.send(JSON.stringify({ type: 'join', name: name }));
             document.getElementById('playerName').style.display = 'none';
             document.getElementById('joinBtn').style.display = 'none';
-            document.getElementById('spawnSelect').style.display = 'block';
-            selectingSpawn = true;
+            document.getElementById('lobbyInfo').style.display = 'block';
         };
 
         document.getElementById('troopSlider').oninput = (e) => {
@@ -127,7 +144,7 @@
 
         canvas.oncontextmenu = (e) => {
             e.preventDefault();
-            if (!playerId || selectingSpawn) return;
+            if (!playerId || selectingSpawn || gameState.gamePhase !== 'playing') return;
 
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left - canvas.width / 2) / zoom + canvas.width / 2 - offsetX;
@@ -135,15 +152,72 @@
 
             for (let territory of gameState.territories) {
                 if (isPointInPolygon(x, y, territory.polygon)) {
-                    // Build defense on own territory
+                    // Show build menu on own territory
                     if (territory.ownerId === playerId) {
-                        socket.send(JSON.stringify({ type: 'buildDefense', territoryId: territory.id }));
+                        selectedTerritory = territory;
+                        showBuildMenu(e.clientX, e.clientY, territory);
                     }
                     break;
                 }
             }
             return false;
         };
+
+        // Close menu on left click
+        canvas.addEventListener('click', () => {
+            document.getElementById('buildMenu').style.display = 'none';
+        });
+
+        function showBuildMenu(x, y, territory) {
+            const menu = document.getElementById('buildMenu');
+            const options = document.getElementById('buildOptions');
+            const player = gameState.players[playerId];
+
+            if (!player) return;
+
+            options.innerHTML = '';
+
+            // Defense option
+            if (territory.defense < 3) {
+                const defBtn = document.createElement('button');
+                defBtn.textContent = `🛡️ Defense Lv${territory.defense + 1} (30 troops)`;
+                defBtn.style.cssText = 'width: 100%; padding: 8px; margin: 4px 0; background: #2a4a5a; border: 1px solid #d62828; color: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;';
+                if (player.army < 30) defBtn.style.opacity = '0.5';
+                defBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (player.army >= 30) {
+                        socket.send(JSON.stringify({ type: 'buildDefense', territoryId: territory.id }));
+                        menu.style.display = 'none';
+                    }
+                };
+                options.appendChild(defBtn);
+            }
+
+            // Building options
+            Object.keys(BUILDING_TYPES).forEach(buildingType => {
+                const building = BUILDING_TYPES[buildingType];
+                if (territory.buildings && territory.buildings.includes(buildingType)) return;
+                if (territory.buildings && territory.buildings.length >= 2) return;
+
+                const btn = document.createElement('button');
+                btn.textContent = `${building.emoji} ${building.name} (${building.cost} gold)`;
+                btn.style.cssText = 'width: 100%; padding: 8px; margin: 4px 0; background: #2a4a5a; border: 1px solid #d62828; color: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;';
+                if (player.gold < building.cost) btn.style.opacity = '0.5';
+                btn.title = building.desc;
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (player.gold >= building.cost) {
+                        socket.send(JSON.stringify({ type: 'buildStructure', territoryId: territory.id, buildingType: buildingType }));
+                        menu.style.display = 'none';
+                    }
+                };
+                options.appendChild(btn);
+            });
+
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+            menu.style.display = 'block';
+        }
         
         function isPointInPolygon(x, y, polygon) {
             let inside = false;
@@ -157,17 +231,47 @@
         }
         
         function updateUI() {
+            // Update lobby timer
+            if (gameState.gamePhase === 'lobby') {
+                document.getElementById('lobbyTimer').textContent = gameState.lobbyTimer;
+                document.getElementById('lobbyPlayerCount').textContent = Object.keys(gameState.players).length;
+                document.getElementById('mapName').textContent = gameState.mapName || 'Europe';
+            }
+
+            // Check if game just started
+            if (gameState.gamePhase === 'playing' && document.getElementById('lobbyInfo').style.display !== 'none') {
+                document.getElementById('lobbyInfo').style.display = 'none';
+                document.getElementById('spawnSelect').style.display = 'block';
+                document.getElementById('controls').style.display = 'block';
+                selectingSpawn = true;
+            }
+
             if (!playerId) return;
             const player = gameState.players[playerId];
             if (player) {
-                document.getElementById('territory').textContent = player.territories;
-                document.getElementById('population').textContent = player.population.toLocaleString();
-                document.getElementById('army').textContent = player.army.toLocaleString();
+                // Check if player selected spawn
+                if (player.spawnSelected && selectingSpawn) {
+                    selectingSpawn = false;
+                    document.getElementById('spawnSelect').style.display = 'none';
+                    document.getElementById('stats').style.display = 'block';
+                }
+
+                document.getElementById('territory').textContent = player.territories || 0;
+                document.getElementById('population').textContent = (player.population || 0).toLocaleString();
+                document.getElementById('army').textContent = (player.army || 0).toLocaleString();
+                document.getElementById('gold').textContent = (player.gold || 0).toLocaleString();
             }
-            const playersList = Object.values(gameState.players).sort((a, b) => b.territories - a.territories).slice(0, 10);
+
+            // Combine players and AI for leaderboard
+            const allEntities = [
+                ...Object.values(gameState.players),
+                ...Object.values(gameState.aiFactions || {})
+            ];
+            const playersList = allEntities.sort((a, b) => b.territories - a.territories).slice(0, 10);
             document.getElementById('players').innerHTML = playersList.map((p, i) => {
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                return `<div class="player-entry" style="color: ${p.color}">${medal} ${p.name} - ${p.territories} territories</div>`;
+                const aiLabel = p.isAI ? ' (AI)' : '';
+                return `<div class="player-entry" style="color: ${p.color}">${medal} ${p.name}${aiLabel} - ${p.territories} territories</div>`;
             }).join('');
         }
         
@@ -179,7 +283,8 @@
             ctx.translate(-canvas.width / 2 + offsetX, -canvas.height / 2 + offsetY);
 
             for (let territory of gameState.territories) {
-                const owner = gameState.players[territory.ownerId];
+                const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
+                const owner = allPlayers[territory.ownerId];
 
                 if (territory.polygon && territory.polygon.length > 0) {
                     ctx.beginPath();
@@ -211,7 +316,8 @@
 
                         // Show fill progress if being captured
                         if (activeAttack) {
-                            const attacker = gameState.players[activeAttack.playerId];
+                            const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
+                            const attacker = allPlayers[activeAttack.playerId];
                             if (attacker) {
                                 ctx.fillStyle = attacker.color + '60'; // Semi-transparent
                                 ctx.globalAlpha = fillProgress / 100;
@@ -239,9 +345,24 @@
                         ctx.font = 'bold 16px Arial';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
-                        const offsetX = (i - 1) * 15;
-                        ctx.fillText('🛡️', territory.x + offsetX, territory.y - 25);
+                        const offsetXPos = (i - 1) * 15;
+                        ctx.fillText('🛡️', territory.x + offsetXPos, territory.y - 25);
                     }
+                }
+
+                // Show buildings
+                if (territory.buildings && territory.buildings.length > 0 && territory.ownerId && territory.ownerId !== 'zombie') {
+                    territory.buildings.forEach((buildingType, i) => {
+                        const building = BUILDING_TYPES[buildingType];
+                        if (building) {
+                            ctx.fillStyle = '#ffd700';
+                            ctx.font = 'bold 14px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            const offsetXPos = (i - 0.5) * 20;
+                            ctx.fillText(building.emoji, territory.x + offsetXPos - 10, territory.y + 25);
+                        }
+                    });
                 }
 
                 // Zombie emoji
@@ -275,7 +396,8 @@
 
                 // Show attack progress bar
                 if (activeAttack) {
-                    const attacker = gameState.players[activeAttack.playerId];
+                    const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
+                    const attacker = allPlayers[activeAttack.playerId];
                     if (attacker) {
                         const barWidth = 60;
                         const barHeight = 6;

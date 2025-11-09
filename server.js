@@ -27,7 +27,11 @@ const wss = new WebSocket.Server({ server });
 const gameState = {
     players: {},
     territories: [],
-    activeAttacks: [] // Track ongoing territory fills
+    activeAttacks: [], // Track ongoing territory fills
+    gamePhase: 'lobby', // 'lobby', 'playing', 'ended'
+    lobbyTimer: 60, // 60 second countdown
+    aiFactions: {}, // Neutral AI factions
+    mapName: 'Europe - Zombie Invasion'
 };
 
 const colors = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#f4a261', '#d62828', '#003049', '#06aed5', '#7209b7'];
@@ -89,7 +93,15 @@ function generatePolygon(centerX, centerY, size, sides = 6) {
     return polygon;
 }
 
+const BUILDING_TYPES = {
+    city: { cost: 100, name: 'City', emoji: '🏛️', goldPerTick: 5, populationBonus: 20 },
+    port: { cost: 150, name: 'Port', emoji: '⚓', goldPerTick: 10, enablesTrade: true },
+    train: { cost: 120, name: 'Train Station', emoji: '🚂', expansionBonus: 1.5 },
+    factory: { cost: 200, name: 'Factory', emoji: '🏭', armyBonus: 1.3 }
+};
+
 function initTerritories() {
+    gameState.territories = []; // Clear existing
     europeCountries.forEach((country, id) => {
         gameState.territories.push({
             id: id,
@@ -101,9 +113,40 @@ function initTerritories() {
             population: 0,
             fillProgress: 0, // 0-100 for sand-fill mechanic
             defense: 0, // Defense structures
-            maxDefense: 3 // Max defense level
+            maxDefense: 3, // Max defense level
+            buildings: [], // ['city', 'port', etc]
+            maxBuildings: 2
         });
     });
+
+    // Create neutral AI factions
+    const aiColors = ['#9b59b6', '#e67e22', '#16a085', '#c0392b'];
+    const neutralTerritories = gameState.territories.filter(t => t.x >= 500 && t.x <= 900 && !t.ownerId);
+
+    for (let i = 0; i < 4; i++) {
+        const aiId = 'ai_' + i;
+        gameState.aiFactions[aiId] = {
+            id: aiId,
+            name: `Faction ${String.fromCharCode(65 + i)}`, // A, B, C, D
+            color: aiColors[i],
+            territories: 0,
+            population: 100,
+            army: 50,
+            gold: 50,
+            isAI: true
+        };
+
+        // Give AI starting territories
+        const available = neutralTerritories.filter(t => !t.ownerId);
+        if (available.length > 0) {
+            const startIdx = Math.floor(Math.random() * available.length);
+            const territory = available[startIdx];
+            territory.ownerId = aiId;
+            territory.population = 50;
+            territory.fillProgress = 100;
+            gameState.aiFactions[aiId].territories = 1;
+        }
+    }
 
     // Zombies start in far eastern territories
     const easternTerritories = gameState.territories.filter(t => t.x > 1000);
@@ -115,7 +158,7 @@ function initTerritories() {
     }
 }
 
-initTerritories();
+// Don't initialize until game starts
 
 function broadcast(data) {
     const message = JSON.stringify(data);
@@ -152,7 +195,9 @@ wss.on('connection', (ws) => {
                     territories: 0,
                     population: 0,
                     army: 0,
-                    troopPercentage: 50 // Default attack percentage
+                    gold: 100, // Starting gold
+                    troopPercentage: 50, // Default attack percentage
+                    spawnSelected: false
                 };
                 colorIndex++;
 
@@ -166,7 +211,10 @@ wss.on('connection', (ws) => {
 
             if (data.type === 'selectSpawn') {
                 const player = gameState.players[playerId];
-                if (!player) return;
+                if (!player || player.spawnSelected) return;
+
+                // Can only select spawn during playing phase
+                if (gameState.gamePhase !== 'playing') return;
 
                 const territory = gameState.territories.find(t => t.id === data.territoryId);
                 if (!territory) return;
@@ -181,6 +229,7 @@ wss.on('connection', (ws) => {
                 player.territories = 1;
                 player.population = 100;
                 player.army = 50;
+                player.spawnSelected = true;
 
                 broadcast({
                     type: 'update',
@@ -196,7 +245,7 @@ wss.on('connection', (ws) => {
 
             if (data.type === 'buildDefense') {
                 const player = gameState.players[playerId];
-                if (!player) return;
+                if (!player || gameState.gamePhase !== 'playing') return;
 
                 const territory = gameState.territories.find(t => t.id === data.territoryId);
                 if (!territory || territory.ownerId !== playerId) return;
@@ -212,15 +261,43 @@ wss.on('connection', (ws) => {
                 }
             }
 
+            if (data.type === 'buildStructure') {
+                const player = gameState.players[playerId];
+                if (!player || gameState.gamePhase !== 'playing') return;
+
+                const territory = gameState.territories.find(t => t.id === data.territoryId);
+                if (!territory || territory.ownerId !== playerId) return;
+
+                const buildingType = data.buildingType;
+                const building = BUILDING_TYPES[buildingType];
+
+                if (!building) return;
+                if (territory.buildings.includes(buildingType)) return; // Already built
+                if (territory.buildings.length >= territory.maxBuildings) return;
+                if (player.gold < building.cost) return;
+
+                // Build it
+                territory.buildings.push(buildingType);
+                player.gold -= building.cost;
+
+                broadcast({
+                    type: 'update',
+                    gameState: gameState
+                });
+            }
+
             if (data.type === 'attack') {
                 const player = gameState.players[playerId];
-                if (!player || player.territories === 0) return;
+                if (!player || player.territories === 0 || gameState.gamePhase !== 'playing') return;
 
                 const territory = gameState.territories.find(t => t.id === data.territoryId);
                 if (!territory) return;
 
-                // PVE: Can't attack other players (only neutral/zombie territories)
-                if (territory.ownerId && territory.ownerId !== 'zombie' && territory.ownerId !== playerId) return;
+                // PVE: Can't attack other players (only neutral/zombie/AI territories)
+                const targetOwner = territory.ownerId;
+                if (targetOwner && targetOwner !== 'zombie' && !targetOwner.startsWith('ai_') && targetOwner !== playerId) {
+                    return; // Can't attack other human players
+                }
 
                 // Can't attack own territory
                 if (territory.ownerId === playerId) return;
@@ -280,89 +357,126 @@ wss.on('connection', (ws) => {
     });
 });
 
-setInterval(() => {
-    // Process sand-fill attacks
-    gameState.activeAttacks = gameState.activeAttacks.filter(attack => {
-        const territory = gameState.territories.find(t => t.id === attack.territoryId);
-        const player = gameState.players[attack.playerId];
+function getAllPlayers() {
+    return { ...gameState.players, ...gameState.aiFactions };
+}
 
-        if (!territory || !player) return false;
+function updateEntity(entity, territories) {
+    entity.territories = territories.length;
 
-        // Increase fill progress
-        attack.progress += attack.fillRate;
+    if (entity.territories > 0) {
+        // Calculate bonuses from buildings
+        let populationBonus = 0;
+        let armyMultiplier = 1.0;
+        let goldIncome = territories.length * 2; // Base gold per territory
 
-        // Check if attack completes
-        if (attack.progress >= 100) {
-            const defendPower = territory.population + (territory.defense * 15);
+        territories.forEach(t => {
+            t.buildings.forEach(buildingType => {
+                const building = BUILDING_TYPES[buildingType];
+                if (building.populationBonus) populationBonus += building.populationBonus;
+                if (building.armyBonus) armyMultiplier *= building.armyBonus;
+                if (building.goldPerTick) goldIncome += building.goldPerTick;
+            });
+        });
 
-            if (attack.troopsUsed > defendPower) {
-                // Successful capture
-                if (territory.ownerId && territory.ownerId !== 'zombie') {
-                    const defender = gameState.players[territory.ownerId];
-                    if (defender) defender.territories--;
-                }
+        // Population growth (keep ~50% for faster growth like openfront.io)
+        const growthRate = entity.army < (entity.population * 0.5) ? 5 : 3;
+        entity.population = Math.min(
+            entity.population + territories.length * growthRate + populationBonus,
+            territories.length * 150
+        );
+        entity.army = Math.floor(entity.population * 0.6 * armyMultiplier);
 
-                territory.ownerId = player.id;
-                territory.population = Math.floor((attack.troopsUsed - defendPower) * 0.6);
-                territory.fillProgress = 100;
-                player.territories++;
-            } else {
-                // Failed attack - just damage
-                territory.population = Math.max(0, territory.population - Math.floor(attack.troopsUsed * 0.4));
+        if (entity.gold !== undefined) {
+            entity.gold += goldIncome;
+        }
+
+        territories.forEach(t => {
+            if (t.population < 100) {
+                t.population = Math.min(t.population + 2, 100);
             }
+        });
+    }
+}
 
-            return false; // Remove completed attack
-        }
+function runAITurn(aiId) {
+    const ai = gameState.aiFactions[aiId];
+    if (!ai) return;
 
-        return true; // Keep active attack
-    });
+    const aiTerritories = gameState.territories.filter(t => t.ownerId === aiId);
+    if (aiTerritories.length === 0) return;
 
-    // Update player resources
-    Object.values(gameState.players).forEach(player => {
-        const territories = gameState.territories.filter(t => t.ownerId === player.id);
-        player.territories = territories.length;
+    // AI tries to expand (less efficient than players)
+    if (Math.random() < 0.15 && ai.army > 30) {
+        const source = aiTerritories[Math.floor(Math.random() * aiTerritories.length)];
+        const targets = gameState.territories.filter(t => {
+            if (t.ownerId === aiId) return false;
+            if (t.ownerId && !t.ownerId.startsWith('ai_') && t.ownerId !== 'zombie') return false; // Don't attack players
+            return checkAdjacent(source, t);
+        });
 
-        if (player.territories > 0) {
-            // Population growth (keep ~50% for faster growth like openfront.io)
-            const growthRate = player.army < (player.population * 0.5) ? 5 : 3;
-            player.population = Math.min(player.population + territories.length * growthRate, territories.length * 150);
-            player.army = Math.floor(player.population * 0.6);
+        if (targets.length > 0) {
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const troopsUsed = Math.floor(ai.army * 0.3); // AI uses 30% troops
 
-            territories.forEach(t => {
-                if (t.population < 100) {
-                    t.population = Math.min(t.population + 2, 100);
-                }
-            });
-        }
-    });
-
-    // Zombie invasion (more aggressive)
-    if (Math.random() < 0.3) {
-        const zombieTerritories = gameState.territories.filter(t => t.ownerId === 'zombie');
-
-        if (zombieTerritories.length > 0) {
-            const source = zombieTerritories[Math.floor(Math.random() * zombieTerritories.length)];
-
-            const targets = gameState.territories.filter(t => {
-                if (t.ownerId === 'zombie') return false;
-                if (!checkAdjacent(source, t)) return false;
-                // Zombies prefer to move west
-                return t.x <= source.x + 50;
+            gameState.activeAttacks.push({
+                id: Math.random().toString(36).substr(2, 9),
+                playerId: aiId,
+                territoryId: target.id,
+                troopsUsed: troopsUsed,
+                progress: 0,
+                fillRate: Math.max(1, troopsUsed / 25) // Slower than players
             });
 
-            if (targets.length > 0) {
-                const target = targets[Math.floor(Math.random() * targets.length)];
-                const zombieAttack = 50 + Math.floor(Math.random() * 20);
-                const defense = target.population + (target.defense * 15);
+            ai.army -= troopsUsed;
+        }
+    }
+}
 
-                if (zombieAttack > defense) {
-                    // Zombie captures territory
-                    if (target.ownerId) {
-                        const defender = gameState.players[target.ownerId];
+setInterval(() => {
+    // LOBBY PHASE: Countdown
+    if (gameState.gamePhase === 'lobby') {
+        gameState.lobbyTimer--;
+
+        if (gameState.lobbyTimer <= 0 || Object.keys(gameState.players).length >= 8) {
+            // Start game
+            gameState.gamePhase = 'playing';
+            initTerritories();
+            console.log('🎮 Game starting with ' + Object.keys(gameState.players).length + ' players!');
+        }
+
+        broadcast({
+            type: 'update',
+            gameState: gameState
+        });
+        return;
+    }
+
+    // PLAYING PHASE
+    if (gameState.gamePhase === 'playing') {
+        // Process sand-fill attacks
+        gameState.activeAttacks = gameState.activeAttacks.filter(attack => {
+            const territory = gameState.territories.find(t => t.id === attack.territoryId);
+            const allPlayers = getAllPlayers();
+            const attacker = allPlayers[attack.playerId];
+
+            if (!territory || !attacker) return false;
+
+            // Increase fill progress
+            attack.progress += attack.fillRate;
+
+            // Check if attack completes
+            if (attack.progress >= 100) {
+                const defendPower = territory.population + (territory.defense * 15);
+
+                if (attack.troopsUsed > defendPower) {
+                    // Successful capture
+                    if (territory.ownerId && territory.ownerId !== 'zombie') {
+                        const defender = allPlayers[territory.ownerId];
                         if (defender) {
                             defender.territories--;
-                            // Game over check
-                            if (defender.territories <= 0) {
+                            if (defender.territories <= 0 && !defender.isAI) {
+                                // Player eliminated
                                 gameState.territories.forEach(t => {
                                     if (t.ownerId === defender.id) {
                                         t.ownerId = null;
@@ -373,32 +487,105 @@ setInterval(() => {
                             }
                         }
                     }
-                    target.ownerId = 'zombie';
-                    target.population = zombieAttack - defense;
-                    target.fillProgress = 100;
-                    target.defense = 0;
+
+                    territory.ownerId = attacker.id;
+                    territory.population = Math.floor((attack.troopsUsed - defendPower) * 0.6);
+                    territory.fillProgress = 100;
+                    attacker.territories++;
                 } else {
-                    // Defend successfully but take damage
-                    target.population = Math.max(0, defense - zombieAttack);
-                    if (target.population < 20 && target.defense > 0) {
-                        target.defense--; // Lose a defense level
+                    // Failed attack - just damage
+                    territory.population = Math.max(0, territory.population - Math.floor(attack.troopsUsed * 0.4));
+                }
+
+                return false; // Remove completed attack
+            }
+
+            return true; // Keep active attack
+        });
+
+        // Update all players
+        Object.values(gameState.players).forEach(player => {
+            const territories = gameState.territories.filter(t => t.ownerId === player.id);
+            updateEntity(player, territories);
+        });
+
+        // Update AI factions
+        Object.values(gameState.aiFactions).forEach(ai => {
+            const territories = gameState.territories.filter(t => t.ownerId === ai.id);
+            updateEntity(ai, territories);
+        });
+
+        // Run AI turns
+        Object.keys(gameState.aiFactions).forEach(aiId => {
+            runAITurn(aiId);
+        });
+
+        // Zombie invasion (more aggressive)
+        if (Math.random() < 0.3) {
+            const zombieTerritories = gameState.territories.filter(t => t.ownerId === 'zombie');
+
+            if (zombieTerritories.length > 0) {
+                const source = zombieTerritories[Math.floor(Math.random() * zombieTerritories.length)];
+
+                const targets = gameState.territories.filter(t => {
+                    if (t.ownerId === 'zombie') return false;
+                    if (!checkAdjacent(source, t)) return false;
+                    // Zombies prefer to move west
+                    return t.x <= source.x + 50;
+                });
+
+                if (targets.length > 0) {
+                    const target = targets[Math.floor(Math.random() * targets.length)];
+                    const zombieAttack = 50 + Math.floor(Math.random() * 20);
+                    const defense = target.population + (target.defense * 15);
+
+                    if (zombieAttack > defense) {
+                        // Zombie captures territory
+                        if (target.ownerId) {
+                            const allPlayers = getAllPlayers();
+                            const defender = allPlayers[target.ownerId];
+                            if (defender) {
+                                defender.territories--;
+                                // Game over check
+                                if (defender.territories <= 0) {
+                                    gameState.territories.forEach(t => {
+                                        if (t.ownerId === defender.id) {
+                                            t.ownerId = null;
+                                            t.population = 0;
+                                            t.fillProgress = 0;
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                        target.ownerId = 'zombie';
+                        target.population = zombieAttack - defense;
+                        target.fillProgress = 100;
+                        target.defense = 0;
+                        target.buildings = [];
+                    } else {
+                        // Defend successfully but take damage
+                        target.population = Math.max(0, defense - zombieAttack);
+                        if (target.population < 20 && target.defense > 0) {
+                            target.defense--; // Lose a defense level
+                        }
                     }
                 }
             }
+
+            // Zombie territories grow
+            zombieTerritories.forEach(t => {
+                if (t.population < 100) {
+                    t.population = Math.min(t.population + 3, 100);
+                }
+            });
         }
 
-        // Zombie territories grow
-        zombieTerritories.forEach(t => {
-            if (t.population < 100) {
-                t.population = Math.min(t.population + 3, 100);
-            }
+        broadcast({
+            type: 'update',
+            gameState: gameState
         });
     }
-
-    broadcast({
-        type: 'update',
-        gameState: gameState
-    });
 }, 1000);
 
 server.listen(PORT, () => {
