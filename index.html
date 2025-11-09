@@ -298,7 +298,14 @@
                     const activeAttack = gameState.activeAttacks?.find(a => a.territoryId === territory.id);
                     const fillProgress = activeAttack ? activeAttack.progress : (territory.fillProgress || 0);
 
-                    if (territory.ownerId === 'zombie') {
+                    if (territory.isWater) {
+                        // Water tiles - ocean blue gradient
+                        const gradient = ctx.createRadialGradient(territory.x, territory.y, 0, territory.x, territory.y, 40);
+                        gradient.addColorStop(0, '#1e5a7d');
+                        gradient.addColorStop(1, '#0d3b52');
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                    } else if (territory.ownerId === 'zombie') {
                         ctx.fillStyle = '#2d4a2e';
                         ctx.fill();
                     } else if (owner) {
@@ -310,8 +317,8 @@
                         ctx.fillStyle = gradient;
                         ctx.fill();
                     } else {
-                        // Neutral territory
-                        ctx.fillStyle = '#2a3a4a';
+                        // Neutral territory - greenish/brownish
+                        ctx.fillStyle = '#3a4a3a';
                         ctx.fill();
 
                         // Show fill progress if being captured
@@ -328,11 +335,14 @@
                     }
 
                     // Border
-                    if (selectingSpawn && territory.x < 650 && !territory.ownerId) {
+                    if (selectingSpawn && territory.region === 'west' && !territory.ownerId && !territory.isWater) {
                         ctx.strokeStyle = '#00ff00'; // Highlight spawn options
                         ctx.lineWidth = 3;
+                    } else if (territory.isWater) {
+                        ctx.strokeStyle = '#0a2a3d'; // Dark water border
+                        ctx.lineWidth = 1;
                     } else {
-                        ctx.strokeStyle = territory.ownerId === 'zombie' ? '#1a2f1b' : owner ? owner.color : '#3a4a5a';
+                        ctx.strokeStyle = territory.ownerId === 'zombie' ? '#1a2f1b' : owner ? owner.color : '#2a3a2a';
                         ctx.lineWidth = 2;
                     }
                     ctx.stroke();
@@ -386,8 +396,8 @@
                     ctx.shadowBlur = 0;
                 }
 
-                // Country name
-                if (territory.countryName) {
+                // Country name (skip for water)
+                if (territory.countryName && !territory.isWater) {
                     ctx.fillStyle = '#888';
                     ctx.font = '9px Arial';
                     ctx.textAlign = 'center';

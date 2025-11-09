@@ -29,7 +29,7 @@ const gameState = {
     territories: [],
     activeAttacks: [], // Track ongoing territory fills
     gamePhase: 'lobby', // 'lobby', 'playing', 'ended'
-    lobbyTimer: 60, // 60 second countdown
+    lobbyTimer: 15, // 15 second countdown for faster testing
     aiFactions: {}, // Neutral AI factions
     mapName: 'Europe - Zombie Invasion'
 };
@@ -37,59 +37,132 @@ const gameState = {
 const colors = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#f4a261', '#d62828', '#003049', '#06aed5', '#7209b7'];
 let colorIndex = 0;
 
-const europeCountries = [
-    { name: 'Portugal', x: 250, y: 450 },
-    { name: 'Spain', x: 350, y: 450 },
-    { name: 'France', x: 450, y: 400 },
-    { name: 'UK', x: 400, y: 300 },
-    { name: 'Ireland', x: 350, y: 280 },
-    { name: 'Belgium', x: 480, y: 350 },
-    { name: 'Netherlands', x: 500, y: 320 },
-    { name: 'Switzerland', x: 520, y: 420 },
-    { name: 'Italy', x: 600, y: 480 },
-    { name: 'Germany', x: 580, y: 360 },
-    { name: 'Austria', x: 650, y: 420 },
-    { name: 'Czech Rep.', x: 680, y: 380 },
-    { name: 'Poland', x: 750, y: 350 },
-    { name: 'Hungary', x: 750, y: 430 },
-    { name: 'Croatia', x: 700, y: 470 },
-    { name: 'Serbia', x: 760, y: 480 },
-    { name: 'Bosnia', x: 720, y: 480 },
-    { name: 'Norway', x: 580, y: 200 },
-    { name: 'Sweden', x: 680, y: 220 },
-    { name: 'Finland', x: 780, y: 200 },
-    { name: 'Denmark', x: 580, y: 300 },
-    { name: 'Estonia', x: 800, y: 250 },
-    { name: 'Latvia', x: 820, y: 280 },
-    { name: 'Lithuania', x: 800, y: 310 },
-    { name: 'Belarus', x: 850, y: 320 },
-    { name: 'Ukraine', x: 900, y: 380 },
-    { name: 'Moldova', x: 880, y: 430 },
-    { name: 'Romania', x: 820, y: 460 },
-    { name: 'Bulgaria', x: 820, y: 500 },
-    { name: 'Russia-W', x: 950, y: 300 },
-    { name: 'Russia-C', x: 1050, y: 280 },
-    { name: 'Russia-E', x: 1150, y: 260 },
-    { name: 'Greece', x: 800, y: 520 },
-    { name: 'Albania', x: 760, y: 510 },
-    { name: 'N.Macedonia', x: 790, y: 500 },
-    { name: 'Turkey-W', x: 880, y: 530 },
-    { name: 'Turkey-E', x: 980, y: 540 }
+// Enhanced European map with more territories and proper structure
+const MAP_WIDTH = 1400;
+const MAP_HEIGHT = 700;
+
+const europeRegions = [
+    // Atlantic Ocean (water)
+    { name: 'Atlantic', x: 100, y: 300, type: 'water' },
+    { name: 'Atlantic', x: 100, y: 400, type: 'water' },
+    { name: 'Atlantic', x: 150, y: 350, type: 'water' },
+    { name: 'Atlantic', x: 150, y: 450, type: 'water' },
+
+    // Western Europe
+    { name: 'Ireland', x: 280, y: 280, region: 'west' },
+    { name: 'Scotland', x: 320, y: 240, region: 'west' },
+    { name: 'England', x: 340, y: 300, region: 'west' },
+    { name: 'Wales', x: 300, y: 320, region: 'west' },
+    { name: 'Portugal', x: 220, y: 420, region: 'west' },
+    { name: 'N.Spain', x: 280, y: 380, region: 'west' },
+    { name: 'S.Spain', x: 300, y: 440, region: 'west' },
+    { name: 'E.Spain', x: 350, y: 410, region: 'west' },
+    { name: 'Brittany', x: 360, y: 350, region: 'west' },
+    { name: 'N.France', x: 400, y: 320, region: 'west' },
+    { name: 'Paris', x: 420, y: 360, region: 'west' },
+    { name: 'S.France', x: 400, y: 420, region: 'west' },
+    { name: 'Lyon', x: 450, y: 400, region: 'west' },
+
+    // Central Europe
+    { name: 'Belgium', x: 460, y: 330, region: 'central' },
+    { name: 'Netherlands', x: 480, y: 300, region: 'central' },
+    { name: 'Denmark', x: 520, y: 260, region: 'central' },
+    { name: 'N.Germany', x: 540, y: 300, region: 'central' },
+    { name: 'Berlin', x: 580, y: 320, region: 'central' },
+    { name: 'S.Germany', x: 560, y: 360, region: 'central' },
+    { name: 'Bavaria', x: 580, y: 380, region: 'central' },
+    { name: 'Switzerland', x: 500, y: 400, region: 'central' },
+    { name: 'Austria', x: 600, y: 400, region: 'central' },
+    { name: 'N.Italy', x: 520, y: 440, region: 'central' },
+    { name: 'Rome', x: 560, y: 480, region: 'central' },
+    { name: 'S.Italy', x: 600, y: 520, region: 'central' },
+    { name: 'Sicily', x: 580, y: 560, region: 'central' },
+    { name: 'Czech', x: 640, y: 360, region: 'central' },
+    { name: 'Slovakia', x: 680, y: 380, region: 'central' },
+    { name: 'Hungary', x: 700, y: 410, region: 'central' },
+    { name: 'Slovenia', x: 640, y: 420, region: 'central' },
+    { name: 'Croatia', x: 660, y: 450, region: 'central' },
+
+    // Scandinavia
+    { name: 'S.Norway', x: 500, y: 220, region: 'north' },
+    { name: 'Oslo', x: 520, y: 200, region: 'north' },
+    { name: 'N.Norway', x: 560, y: 160, region: 'north' },
+    { name: 'S.Sweden', x: 600, y: 240, region: 'north' },
+    { name: 'Stockholm', x: 640, y: 220, region: 'north' },
+    { name: 'N.Sweden', x: 640, y: 180, region: 'north' },
+    { name: 'S.Finland', x: 720, y: 220, region: 'north' },
+    { name: 'Helsinki', x: 740, y: 200, region: 'north' },
+    { name: 'N.Finland', x: 760, y: 160, region: 'north' },
+
+    // Eastern Europe
+    { name: 'N.Poland', x: 680, y: 300, region: 'east' },
+    { name: 'Warsaw', x: 700, y: 320, region: 'east' },
+    { name: 'S.Poland', x: 720, y: 350, region: 'east' },
+    { name: 'Estonia', x: 760, y: 220, region: 'east' },
+    { name: 'Latvia', x: 780, y: 250, region: 'east' },
+    { name: 'Lithuania', x: 760, y: 280, region: 'east' },
+    { name: 'N.Belarus', x: 800, y: 280, region: 'east' },
+    { name: 'Minsk', x: 820, y: 310, region: 'east' },
+    { name: 'S.Belarus', x: 800, y: 340, region: 'east' },
+    { name: 'N.Ukraine', x: 840, y: 340, region: 'east' },
+    { name: 'Kiev', x: 860, y: 370, region: 'east' },
+    { name: 'C.Ukraine', x: 880, y: 400, region: 'east' },
+    { name: 'S.Ukraine', x: 900, y: 440, region: 'east' },
+    { name: 'Crimea', x: 940, y: 460, region: 'east' },
+    { name: 'Moldova', x: 860, y: 420, region: 'east' },
+    { name: 'Romania', x: 800, y: 440, region: 'east' },
+    { name: 'Bulgaria', x: 820, y: 480, region: 'east' },
+    { name: 'Serbia', x: 740, y: 460, region: 'east' },
+    { name: 'Bosnia', x: 700, y: 460, region: 'east' },
+    { name: 'Albania', x: 720, y: 500, region: 'east' },
+    { name: 'Macedonia', x: 760, y: 500, region: 'east' },
+    { name: 'Greece', x: 780, y: 530, region: 'east' },
+    { name: 'Crete', x: 800, y: 570, type: 'water' },
+
+    // Russia
+    { name: 'Kaliningrad', x: 720, y: 270, region: 'russia' },
+    { name: 'St.Pete', x: 840, y: 220, region: 'russia' },
+    { name: 'W.Russia', x: 900, y: 260, region: 'russia' },
+    { name: 'Moscow', x: 940, y: 280, region: 'russia' },
+    { name: 'Volga', x: 1000, y: 300, region: 'russia' },
+    { name: 'Rostov', x: 960, y: 400, region: 'russia' },
+    { name: 'Urals', x: 1060, y: 280, region: 'russia' },
+    { name: 'Siberia-W', x: 1120, y: 260, region: 'russia' },
+    { name: 'Siberia-E', x: 1180, y: 240, region: 'russia' },
+    { name: 'Caucasus', x: 1020, y: 440, region: 'russia' },
+
+    // Mediterranean (water)
+    { name: 'Med.Sea', x: 480, y: 540, type: 'water' },
+    { name: 'Med.Sea', x: 540, y: 580, type: 'water' },
+    { name: 'Med.Sea', x: 640, y: 560, type: 'water' },
+    { name: 'Med.Sea', x: 700, y: 580, type: 'water' },
+    { name: 'Adriatic', x: 620, y: 480, type: 'water' },
+
+    // Black Sea (water)
+    { name: 'Black Sea', x: 900, y: 480, type: 'water' },
+    { name: 'Black Sea', x: 940, y: 500, type: 'water' },
+
+    // Baltic Sea (water)
+    { name: 'Baltic', x: 660, y: 260, type: 'water' },
+    { name: 'Baltic', x: 700, y: 240, type: 'water' },
+    { name: 'Baltic', x: 560, y: 280, type: 'water' }
 ];
 
-function generatePolygon(centerX, centerY, size, sides = 6) {
+function generatePolygon(centerX, centerY, size, sides = 6, seed = 0) {
     const polygon = [];
     const angleStep = (Math.PI * 2) / sides;
-    const jitter = 0.3;
-    
+    const jitter = 0.2;
+
     for (let i = 0; i < sides; i++) {
-        const angle = angleStep * i + (Math.random() - 0.5) * angleStep * jitter;
-        const radius = size * (0.85 + Math.random() * 0.3);
+        // Use seed for consistent generation
+        const randomOffset = Math.sin(seed + i * 1.5) * 0.5 + 0.5;
+        const angle = angleStep * i + (randomOffset - 0.5) * angleStep * jitter;
+        const radius = size * (0.9 + randomOffset * 0.2);
         const x = centerX + Math.cos(angle) * radius;
         const y = centerY + Math.sin(angle) * radius;
         polygon.push([x, y]);
     }
-    
+
     return polygon;
 }
 
@@ -102,60 +175,72 @@ const BUILDING_TYPES = {
 
 function initTerritories() {
     gameState.territories = []; // Clear existing
-    europeCountries.forEach((country, id) => {
+    gameState.aiFactions = {}; // Clear AI factions
+
+    europeRegions.forEach((region, id) => {
+        const isWater = region.type === 'water';
         gameState.territories.push({
             id: id,
-            x: country.x,
-            y: country.y,
-            polygon: generatePolygon(country.x, country.y, 50, 6 + Math.floor(Math.random() * 2)),
-            countryName: country.name,
+            x: region.x,
+            y: region.y,
+            polygon: generatePolygon(region.x, region.y, isWater ? 45 : 38, 6, id),
+            countryName: region.name,
             ownerId: null,
             population: 0,
-            fillProgress: 0, // 0-100 for sand-fill mechanic
-            defense: 0, // Defense structures
-            maxDefense: 3, // Max defense level
-            buildings: [], // ['city', 'port', etc]
-            maxBuildings: 2
+            fillProgress: 0,
+            defense: 0,
+            maxDefense: 3,
+            buildings: [],
+            maxBuildings: 2,
+            isWater: isWater,
+            region: region.region
         });
     });
 
-    // Create neutral AI factions
+    // Create neutral AI factions in central/eastern Europe
     const aiColors = ['#9b59b6', '#e67e22', '#16a085', '#c0392b'];
-    const neutralTerritories = gameState.territories.filter(t => t.x >= 500 && t.x <= 900 && !t.ownerId);
+    const aiNames = ['Kingdom of Prussia', 'Polish Empire', 'Hungarian Kingdom', 'Serbian Federation'];
+    const aiRegions = [
+        gameState.territories.filter(t => t.region === 'central' && !t.isWater && t.x > 550 && t.x < 650),
+        gameState.territories.filter(t => t.region === 'east' && !t.isWater && t.x > 650 && t.x < 750),
+        gameState.territories.filter(t => t.region === 'central' && !t.isWater && t.x > 650 && t.y > 380),
+        gameState.territories.filter(t => t.region === 'east' && !t.isWater && t.x > 700 && t.y > 430)
+    ];
 
     for (let i = 0; i < 4; i++) {
         const aiId = 'ai_' + i;
         gameState.aiFactions[aiId] = {
             id: aiId,
-            name: `Faction ${String.fromCharCode(65 + i)}`, // A, B, C, D
+            name: aiNames[i],
             color: aiColors[i],
             territories: 0,
-            population: 100,
-            army: 50,
-            gold: 50,
+            population: 150,
+            army: 75,
+            gold: 100,
             isAI: true
         };
 
-        // Give AI starting territories
-        const available = neutralTerritories.filter(t => !t.ownerId);
-        if (available.length > 0) {
-            const startIdx = Math.floor(Math.random() * available.length);
-            const territory = available[startIdx];
+        // Give AI starting territories (2-3 each)
+        const possibleTerritories = aiRegions[i].filter(t => !t.ownerId && !t.isWater);
+        const numTerritories = 2 + Math.floor(Math.random() * 2);
+
+        for (let j = 0; j < numTerritories && possibleTerritories.length > 0; j++) {
+            const idx = Math.floor(Math.random() * possibleTerritories.length);
+            const territory = possibleTerritories.splice(idx, 1)[0];
             territory.ownerId = aiId;
-            territory.population = 50;
+            territory.population = 60;
             territory.fillProgress = 100;
-            gameState.aiFactions[aiId].territories = 1;
+            gameState.aiFactions[aiId].territories++;
         }
     }
 
-    // Zombies start in far eastern territories
-    const easternTerritories = gameState.territories.filter(t => t.x > 1000);
-    for (let i = 0; i < easternTerritories.length; i++) {
-        const territory = easternTerritories[i];
+    // Zombies start in far eastern territories (Russia/Siberia)
+    const easternTerritories = gameState.territories.filter(t => !t.isWater && t.x > 1050);
+    easternTerritories.forEach(territory => {
         territory.ownerId = 'zombie';
         territory.population = 80;
         territory.fillProgress = 100;
-    }
+    });
 }
 
 // Don't initialize until game starts
@@ -171,7 +256,7 @@ function broadcast(data) {
 
 function checkAdjacent(t1, t2) {
     const dist = Math.sqrt((t1.x - t2.x) ** 2 + (t1.y - t2.y) ** 2);
-    return dist < 180;
+    return dist < 100; // Closer adjacency for better gameplay
 }
 
 wss.on('connection', (ws) => {
@@ -217,10 +302,10 @@ wss.on('connection', (ws) => {
                 if (gameState.gamePhase !== 'playing') return;
 
                 const territory = gameState.territories.find(t => t.id === data.territoryId);
-                if (!territory) return;
+                if (!territory || territory.isWater) return;
 
-                // Must be in Western Europe and unclaimed
-                if (territory.x > 650 || territory.ownerId) return;
+                // Must be in Western Europe (region 'west') and unclaimed
+                if (territory.region !== 'west' || territory.ownerId) return;
 
                 // Give player their starting territory
                 territory.ownerId = playerId;
@@ -291,7 +376,7 @@ wss.on('connection', (ws) => {
                 if (!player || player.territories === 0 || gameState.gamePhase !== 'playing') return;
 
                 const territory = gameState.territories.find(t => t.id === data.territoryId);
-                if (!territory) return;
+                if (!territory || territory.isWater) return; // Can't attack water
 
                 // PVE: Can't attack other players (only neutral/zombie/AI territories)
                 const targetOwner = territory.ownerId;
@@ -410,6 +495,7 @@ function runAITurn(aiId) {
     if (Math.random() < 0.15 && ai.army > 30) {
         const source = aiTerritories[Math.floor(Math.random() * aiTerritories.length)];
         const targets = gameState.territories.filter(t => {
+            if (t.isWater) return false; // Don't attack water
             if (t.ownerId === aiId) return false;
             if (t.ownerId && !t.ownerId.startsWith('ai_') && t.ownerId !== 'zombie') return false; // Don't attack players
             return checkAdjacent(source, t);
@@ -528,6 +614,7 @@ setInterval(() => {
                 const source = zombieTerritories[Math.floor(Math.random() * zombieTerritories.length)];
 
                 const targets = gameState.territories.filter(t => {
+                    if (t.isWater) return false; // Zombies don't go in water
                     if (t.ownerId === 'zombie') return false;
                     if (!checkAdjacent(source, t)) return false;
                     // Zombies prefer to move west
