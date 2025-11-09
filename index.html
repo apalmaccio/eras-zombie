@@ -82,10 +82,12 @@
         let selectedTerritory = null;
 
         const BUILDING_TYPES = {
-            city: { cost: 100, name: 'City', emoji: '🏛️', desc: '+5 gold/tick, +20 pop' },
-            port: { cost: 150, name: 'Port', emoji: '⚓', desc: '+10 gold/tick, enables trade' },
-            train: { cost: 120, name: 'Train Station', emoji: '🚂', desc: '1.5x expansion speed' },
-            factory: { cost: 200, name: 'Factory', emoji: '🏭', desc: '1.3x army strength' }
+            city: { cost: 150, name: 'City', emoji: '🏛️', desc: '+8 gold/tick, +30 pop bonus' },
+            port: { cost: 200, name: 'Port', emoji: '⚓', desc: '+15 gold/tick, trade routes' },
+            train: { cost: 180, name: 'Train Station', emoji: '🚂', desc: '+50% expansion speed' },
+            factory: { cost: 250, name: 'Factory', emoji: '🏭', desc: '+40% army strength' },
+            defensepost: { cost: 300, name: 'Defense Post', emoji: '🏰', desc: '+50 defense power' },
+            missile: { cost: 500, name: 'Missile Silo', emoji: '🚀', desc: 'Launch long-range attacks' }
         };
         
         document.getElementById('zoomIn').onclick = () => { zoom = Math.min(zoom * 1.2, 3.0); };
@@ -197,7 +199,7 @@
             Object.keys(BUILDING_TYPES).forEach(buildingType => {
                 const building = BUILDING_TYPES[buildingType];
                 if (territory.buildings && territory.buildings.includes(buildingType)) return;
-                if (territory.buildings && territory.buildings.length >= 2) return;
+                if (territory.buildings && territory.buildings.length >= 3) return;
 
                 const btn = document.createElement('button');
                 btn.textContent = `${building.emoji} ${building.name} (${building.cost} gold)`;

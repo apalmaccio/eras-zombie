@@ -167,10 +167,50 @@ function generatePolygon(centerX, centerY, size, sides = 6, seed = 0) {
 }
 
 const BUILDING_TYPES = {
-    city: { cost: 100, name: 'City', emoji: '🏛️', goldPerTick: 5, populationBonus: 20 },
-    port: { cost: 150, name: 'Port', emoji: '⚓', goldPerTick: 10, enablesTrade: true },
-    train: { cost: 120, name: 'Train Station', emoji: '🚂', expansionBonus: 1.5 },
-    factory: { cost: 200, name: 'Factory', emoji: '🏭', armyBonus: 1.3 }
+    city: {
+        cost: 150,
+        name: 'City',
+        emoji: '🏛️',
+        goldPerTick: 8,
+        populationBonus: 30,
+        description: 'Increases max population and gold income. Essential for growth.'
+    },
+    port: {
+        cost: 200,
+        name: 'Port',
+        emoji: '⚓',
+        goldPerTick: 15,
+        enablesTrade: true,
+        description: 'Enables trade routes for massive gold income.'
+    },
+    train: {
+        cost: 180,
+        name: 'Train Station',
+        emoji: '🚂',
+        expansionBonus: 1.5,
+        description: 'Speeds up territory expansion by 50%.'
+    },
+    factory: {
+        cost: 250,
+        name: 'Factory',
+        emoji: '🏭',
+        armyBonus: 1.4,
+        description: 'Increases army strength by 40%.'
+    },
+    defensepost: {
+        cost: 300,
+        name: 'Defense Post',
+        emoji: '🏰',
+        defenseBonus: 50,
+        description: 'Adds +50 defense to territory. Critical for borders.'
+    },
+    missile: {
+        cost: 500,
+        name: 'Missile Silo',
+        emoji: '🚀',
+        enablesMissiles: true,
+        description: 'Launch devastating attacks on distant enemies.'
+    }
 };
 
 function initTerritories() {
@@ -191,7 +231,7 @@ function initTerritories() {
             defense: 0,
             maxDefense: 3,
             buildings: [],
-            maxBuildings: 2,
+            maxBuildings: 3, // Increased to 3 for more strategic depth
             isWater: isWater,
             region: region.region
         });
@@ -454,6 +494,7 @@ function updateEntity(entity, territories) {
         let populationBonus = 0;
         let armyMultiplier = 1.0;
         let goldIncome = territories.length * 2; // Base gold per territory
+        let hasPorts = 0;
 
         territories.forEach(t => {
             t.buildings.forEach(buildingType => {
@@ -461,19 +502,26 @@ function updateEntity(entity, territories) {
                 if (building.populationBonus) populationBonus += building.populationBonus;
                 if (building.armyBonus) armyMultiplier *= building.armyBonus;
                 if (building.goldPerTick) goldIncome += building.goldPerTick;
+                if (building.enablesTrade) hasPorts++;
             });
         });
 
+        // Port trade bonus: each port can trade with other ports for extra income
+        if (hasPorts > 0) {
+            goldIncome += hasPorts * 5; // Each port generates extra trade income
+        }
+
         // Population growth (keep ~50% for faster growth like openfront.io)
         const growthRate = entity.army < (entity.population * 0.5) ? 5 : 3;
+        const maxPopulation = territories.length * 150 + populationBonus * 5; // Cities increase max pop cap
         entity.population = Math.min(
-            entity.population + territories.length * growthRate + populationBonus,
-            territories.length * 150
+            entity.population + territories.length * growthRate + Math.floor(populationBonus / 10),
+            maxPopulation
         );
         entity.army = Math.floor(entity.population * 0.6 * armyMultiplier);
 
         if (entity.gold !== undefined) {
-            entity.gold += goldIncome;
+            entity.gold = Math.max(0, entity.gold + goldIncome);
         }
 
         territories.forEach(t => {
@@ -553,7 +601,15 @@ setInterval(() => {
 
             // Check if attack completes
             if (attack.progress >= 100) {
-                const defendPower = territory.population + (territory.defense * 15);
+                // Calculate defense including defense posts
+                let defenseBonus = 0;
+                if (territory.buildings) {
+                    territory.buildings.forEach(buildingType => {
+                        const building = BUILDING_TYPES[buildingType];
+                        if (building.defenseBonus) defenseBonus += building.defenseBonus;
+                    });
+                }
+                const defendPower = territory.population + (territory.defense * 15) + defenseBonus;
 
                 if (attack.troopsUsed > defendPower) {
                     // Successful capture
@@ -624,7 +680,16 @@ setInterval(() => {
                 if (targets.length > 0) {
                     const target = targets[Math.floor(Math.random() * targets.length)];
                     const zombieAttack = 50 + Math.floor(Math.random() * 20);
-                    const defense = target.population + (target.defense * 15);
+
+                    // Calculate defense including defense posts
+                    let defenseBonus = 0;
+                    if (target.buildings) {
+                        target.buildings.forEach(buildingType => {
+                            const building = BUILDING_TYPES[buildingType];
+                            if (building.defenseBonus) defenseBonus += building.defenseBonus;
+                        });
+                    }
+                    const defense = target.population + (target.defense * 15) + defenseBonus;
 
                     if (zombieAttack > defense) {
                         // Zombie captures territory

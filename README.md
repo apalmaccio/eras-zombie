@@ -69,11 +69,13 @@ pm2 save
 1. **Join Lobby** - Enter your name and wait for game to start
 2. **Select Spawn** - Click a territory in Western Europe (highlighted green)
 3. **Expand Territory** - Left-click adjacent territories to sand-fill capture
-4. **Build Economy** - Right-click your territories to open build menu
-   - 🏛️ **City** (100g): +5 gold/tick, +20 population
-   - ⚓ **Port** (150g): +10 gold/tick, enables trade
-   - 🚂 **Train** (120g): 1.5x expansion speed
-   - 🏭 **Factory** (200g): 1.3x army strength
+4. **Build Economy** - Right-click your territories to open build menu (max 3 buildings per territory)
+   - 🏛️ **City** (150g): +8 gold/tick, +30 population bonus
+   - ⚓ **Port** (200g): +15 gold/tick, enables trade routes
+   - 🚂 **Train Station** (180g): +50% expansion speed
+   - 🏭 **Factory** (250g): +40% army strength
+   - 🏰 **Defense Post** (300g): +50 defense power
+   - 🚀 **Missile Silo** (500g): Launch long-range attacks
 5. **Defend** - Build defenses, fight zombies, capture AI lands
 
 ### Controls
@@ -149,12 +151,14 @@ adjacency distance: 100,            // How close territories must be
 fillRate: troopsUsed / 20,          // Sand-fill speed
 ```
 
-### Building Costs
-- Defense: 30 troops
-- City: 100 gold
-- Port: 150 gold
-- Train: 120 gold
-- Factory: 200 gold
+### Building Costs & Effects
+- **Defense Shield**: 30 troops (max 3 per territory, +15 defense each)
+- **City**: 150 gold (+8 gold/tick, +30 pop bonus, increases max population)
+- **Port**: 200 gold (+15 gold/tick, +5 per port trade bonus)
+- **Train Station**: 180 gold (+50% faster territory expansion)
+- **Factory**: 250 gold (+40% army strength multiplier)
+- **Defense Post**: 300 gold (+50 defense power to territory)
+- **Missile Silo**: 500 gold (enables long-range attacks)
 
 ## 🚀 Auto-Deployment
 
