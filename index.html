@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eras Zombie - Europe</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a1128; color: #fff; font-family: 'Arial', sans-serif; overflow: hidden; }
+        #gameCanvas { display: block; background: #1a2f4a; cursor: crosshair; }
+        #ui { position: absolute; top: 15px; left: 15px; background: rgba(10, 17, 40, 0.95); padding: 20px; border-radius: 10px; min-width: 220px; border: 2px solid #d62828; box-shadow: 0 0 20px rgba(214, 40, 40, 0.3); }
+        #playerName { padding: 10px; margin-bottom: 12px; border: 2px solid #555; border-radius: 6px; width: 100%; font-size: 14px; background: #1a1a1a; color: #fff; }
+        #joinBtn { padding: 12px 24px; background: linear-gradient(135deg, #d62828 0%, #9d0208 100%); border: none; border-radius: 6px; color: white; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; transition: all 0.3s; }
+        #joinBtn:hover { background: linear-gradient(135deg, #9d0208 0%, #6a040f 100%); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(214, 40, 40, 0.4); }
+        .stat { margin: 10px 0; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
+        .stat-label { color: #aaa; font-weight: 600; }
+        .stat-value { color: #d62828; font-weight: bold; font-size: 16px; }
+        #leaderboard { position: absolute; top: 15px; right: 15px; background: rgba(10, 17, 40, 0.95); padding: 20px; border-radius: 10px; min-width: 220px; max-height: 400px; overflow-y: auto; border: 2px solid #d62828; box-shadow: 0 0 20px rgba(214, 40, 40, 0.3); }
+        .player-entry { padding: 8px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .player-entry:last-child { border-bottom: none; }
+        #controls { position: absolute; bottom: 15px; left: 15px; background: rgba(10, 17, 40, 0.95); padding: 20px; border-radius: 10px; border: 2px solid #d62828; box-shadow: 0 0 20px rgba(214, 40, 40, 0.3); }
+        #zoomControls { position: absolute; bottom: 15px; right: 15px; display: flex; gap: 10px; }
+        .zoom-btn { background: rgba(10, 17, 40, 0.95); border: 2px solid #d62828; color: #fff; width: 50px; height: 50px; border-radius: 8px; font-size: 24px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; }
+        .zoom-btn:hover { background: #d62828; transform: scale(1.1); }
+        h2 { margin-bottom: 12px; color: #d62828; font-size: 20px; text-shadow: 0 0 10px rgba(214, 40, 40, 0.5); text-transform: uppercase; letter-spacing: 2px; }
+        .control-text { color: #aaa; font-size: 12px; line-height: 1.8; }
+        .control-text strong { color: #d62828; }
+        #mapTitle { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(10, 17, 40, 0.95); padding: 15px 30px; border-radius: 10px; border: 2px solid #d62828; box-shadow: 0 0 20px rgba(214, 40, 40, 0.3); font-size: 24px; font-weight: bold; text-transform: uppercase; letter-spacing: 3px; color: #d62828; text-shadow: 0 0 10px rgba(214, 40, 40, 0.5); }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="mapTitle">🧟 ERAS: ZOMBIE EUROPE 🧟</div>
+    <div id="ui">
+        <h2>🛡️ Command</h2>
+        <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
+        <button id="joinBtn">Join Battle</button>
+        <div id="stats" style="display:none;">
+            <div class="stat"><span class="stat-label">Territory</span> <span class="stat-value" id="territory">0</span></div>
+            <div class="stat"><span class="stat-label">Population</span> <span class="stat-value" id="population">0</span></div>
+            <div class="stat"><span class="stat-label">Army</span> <span class="stat-value" id="army">0</span></div>
+        </div>
+    </div>
+    <div id="leaderboard"><h2>🏆 Nations</h2><div id="players"></div></div>
+    <div id="controls" style="display:none;"><div class="control-text"><strong>LEFT CLICK</strong> territory to attack<br><strong>CAPTURE</strong> land to grow your empire<br><strong>DEFEND</strong> against the zombie horde from the East!</div></div>
+    <div id="zoomControls"><button class="zoom-btn" id="zoomOut">−</button><button class="zoom-btn" id="zoomIn">+</button></div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        let socket, playerId = null;
+        let gameState = { players: {}, territories: [] };
+        let zoom = 1.0, offsetX = 0, offsetY = 0;
+        
+        document.getElementById('zoomIn').onclick = () => { zoom = Math.min(zoom * 1.2, 3.0); };
+        document.getElementById('zoomOut').onclick = () => { zoom = Math.max(zoom / 1.2, 0.5); };
+        
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            socket = new WebSocket(protocol + '//' + window.location.host);
+            socket.onopen = () => console.log('Connected');
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'init') { playerId = data.playerId; gameState = data.gameState; }
+                else if (data.type === 'update') { gameState = data.gameState; }
+                updateUI();
+            };
+            socket.onclose = () => setTimeout(connect, 2000);
+        }
+        
+        document.getElementById('joinBtn').onclick = () => {
+            const name = document.getElementById('playerName').value.trim() || 'Survivor';
+            socket.send(JSON.stringify({ type: 'join', name: name }));
+            document.getElementById('playerName').style.display = 'none';
+            document.getElementById('joinBtn').style.display = 'none';
+            document.getElementById('stats').style.display = 'block';
+            document.getElementById('controls').style.display = 'block';
+        };
+        
+        canvas.onclick = (e) => {
+            if (!playerId) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left - canvas.width / 2) / zoom + canvas.width / 2 - offsetX;
+            const y = (e.clientY - rect.top - canvas.height / 2) / zoom + canvas.height / 2 - offsetY;
+            
+            for (let territory of gameState.territories) {
+                if (isPointInPolygon(x, y, territory.polygon)) {
+                    socket.send(JSON.stringify({ type: 'attack', territoryId: territory.id }));
+                    break;
+                }
+            }
+        };
+        
+        function isPointInPolygon(x, y, polygon) {
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                const xi = polygon[i][0], yi = polygon[i][1];
+                const xj = polygon[j][0], yj = polygon[j][1];
+                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+        
+        function updateUI() {
+            if (!playerId) return;
+            const player = gameState.players[playerId];
+            if (player) {
+                document.getElementById('territory').textContent = player.territories;
+                document.getElementById('population').textContent = player.population.toLocaleString();
+                document.getElementById('army').textContent = player.army.toLocaleString();
+            }
+            const playersList = Object.values(gameState.players).sort((a, b) => b.territories - a.territories).slice(0, 10);
+            document.getElementById('players').innerHTML = playersList.map((p, i) => {
+                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                return `<div class="player-entry" style="color: ${p.color}">${medal} ${p.name} - ${p.territories} territories</div>`;
+            }).join('');
+        }
+        
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(zoom, zoom);
+            ctx.translate(-canvas.width / 2 + offsetX, -canvas.height / 2 + offsetY);
+            
+            for (let territory of gameState.territories) {
+                const owner = gameState.players[territory.ownerId];
+                
+                if (territory.polygon && territory.polygon.length > 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(territory.polygon[0][0], territory.polygon[0][1]);
+                    for (let i = 1; i < territory.polygon.length; i++) {
+                        ctx.lineTo(territory.polygon[i][0], territory.polygon[i][1]);
+                    }
+                    ctx.closePath();
+                    
+                    if (territory.ownerId === 'zombie') {
+                        ctx.fillStyle = '#2d4a2e';
+                        ctx.fill();
+                    } else if (owner) {
+                        const fillPercent = Math.min(territory.population / 100, 1);
+                        const gradient = ctx.createRadialGradient(territory.x, territory.y, 0, territory.x, territory.y, 80);
+                        gradient.addColorStop(0, owner.color + Math.floor(fillPercent * 255).toString(16).padStart(2, '0'));
+                        gradient.addColorStop(1, owner.color + Math.floor(fillPercent * 128).toString(16).padStart(2, '0'));
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                    } else {
+                        ctx.fillStyle = '#2a3a4a';
+                        ctx.fill();
+                    }
+                    
+                    ctx.strokeStyle = territory.ownerId === 'zombie' ? '#1a2f1b' : owner ? owner.color : '#3a4a5a';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+                
+                if (territory.ownerId === 'zombie') {
+                    ctx.fillStyle = '#8fb339';
+                    ctx.font = 'bold 20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🧟', territory.x, territory.y);
+                }
+                
+                if (territory.population > 0 && territory.ownerId && territory.ownerId !== 'zombie') {
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 13px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                    ctx.shadowBlur = 3;
+                    ctx.fillText(territory.population, territory.x, territory.y);
+                    ctx.shadowBlur = 0;
+                }
+                
+                if (territory.countryName) {
+                    ctx.fillStyle = '#888';
+                    ctx.font = '9px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(territory.countryName, territory.x, territory.y - 20);
+                }
+            }
+            
+            ctx.restore();
+            requestAnimationFrame(render);
+        }
+        
+        connect();
+        render();
+    </script>
+</body>
+</html>
