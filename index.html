@@ -3,674 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Eras Zombie - Europe</title>
+    <title>Eras Zombie - MVP</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: linear-gradient(135deg, #0a1128 0%, #1a2f4a 100%);
-            color: #fff;
+        html, body {
+            height: 100%;
+            margin: 0;
+            background: #10293f;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
         }
-        #gameCanvas {
-            display: block;
-            background: #1a2f4a;
-            cursor: crosshair;
+        #stage {
+            position: fixed;
+            inset: 0;
         }
-        #ui {
-            position: absolute;
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .panel {
+            position: fixed;
+            z-index: 10;
+            pointer-events: auto;
+            background: rgba(10, 17, 40, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #d62828;
+            box-shadow: 0 0 20px rgba(214, 40, 40, 0.4);
+            color: #fff;
+        }
+        #hud {
             top: 15px;
             left: 15px;
-            background: rgba(10, 17, 40, 0.96);
-            padding: 20px;
-            border-radius: 12px;
-            min-width: 240px;
-            border: 2px solid #d62828;
-            box-shadow: 0 0 30px rgba(214, 40, 40, 0.4), 0 4px 20px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            animation: slideInLeft 0.5s ease-out;
+            min-width: 200px;
         }
-        @keyframes slideInLeft {
-            from { transform: translateX(-100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        #playerName {
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 2px solid #444;
-            border-radius: 8px;
-            width: 100%;
-            font-size: 14px;
-            background: rgba(26, 26, 26, 0.8);
-            color: #fff;
-            transition: all 0.3s;
-        }
-        #playerName:focus {
-            border-color: #d62828;
-            outline: none;
-            box-shadow: 0 0 10px rgba(214, 40, 40, 0.3);
-        }
-        #joinBtn {
-            padding: 14px 24px;
-            background: linear-gradient(135deg, #d62828 0%, #9d0208 100%);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(214, 40, 40, 0.3);
-        }
-        #joinBtn:hover {
-            background: linear-gradient(135deg, #ff4757 0%, #d62828 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(214, 40, 40, 0.5);
-        }
-        #joinBtn:active {
-            transform: translateY(0);
+        #buildMenu {
+            display: none;
+            min-width: 180px;
         }
         .stat {
-            margin: 10px 0;
-            font-size: 14px;
+            margin: 8px 0;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 8px;
-            border-radius: 6px;
-            background: rgba(255,255,255,0.03);
-            transition: all 0.3s;
-        }
-        .stat:hover {
-            background: rgba(255,255,255,0.06);
+            font-size: 14px;
         }
         .stat-label {
             color: #bbb;
-            font-weight: 600;
-            font-size: 13px;
         }
         .stat-value {
             color: #d62828;
             font-weight: bold;
-            font-size: 17px;
-            text-shadow: 0 0 5px rgba(214, 40, 40, 0.3);
         }
-        #leaderboard {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(10, 17, 40, 0.96);
-            padding: 20px;
-            border-radius: 12px;
-            min-width: 240px;
-            max-height: 450px;
-            overflow-y: auto;
-            border: 2px solid #d62828;
-            box-shadow: 0 0 30px rgba(214, 40, 40, 0.4), 0 4px 20px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            animation: slideInRight 0.5s ease-out;
-        }
-        #leaderboard::-webkit-scrollbar {
-            width: 8px;
-        }
-        #leaderboard::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.05);
-            border-radius: 4px;
-        }
-        #leaderboard::-webkit-scrollbar-thumb {
-            background: #d62828;
-            border-radius: 4px;
-        }
-        .player-entry {
-            padding: 10px;
-            font-size: 13px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.3s;
-            border-radius: 6px;
-        }
-        .player-entry:hover {
-            background: rgba(255,255,255,0.05);
-            transform: translateX(5px);
-        }
-        .player-entry:last-child { border-bottom: none; }
-        #controls {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            background: rgba(10, 17, 40, 0.96);
-            padding: 20px;
-            border-radius: 12px;
-            border: 2px solid #d62828;
-            box-shadow: 0 0 30px rgba(214, 40, 40, 0.4), 0 4px 20px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.8s ease-out;
-        }
-        #zoomControls {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            display: flex;
-            gap: 10px;
-        }
-        .zoom-btn {
-            background: rgba(10, 17, 40, 0.96);
-            border: 2px solid #d62828;
+        .build-btn {
+            width: 100%;
+            padding: 8px;
+            margin: 4px 0;
+            background: #2a4a5a;
+            border: 1px solid #d62828;
             color: #fff;
-            width: 55px;
-            height: 55px;
-            border-radius: 10px;
-            font-size: 26px;
             cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border-radius: 4px;
+            font-size: 12px;
         }
-        .zoom-btn:hover {
-            background: #d62828;
-            transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(214, 40, 40, 0.5);
-        }
-        .zoom-btn:active {
-            transform: scale(0.95);
+        .build-btn:hover {
+            background: #3a5a6a;
         }
         h2 {
-            margin-bottom: 15px;
+            margin: 0 0 10px 0;
             color: #d62828;
-            font-size: 21px;
-            text-shadow: 0 0 15px rgba(214, 40, 40, 0.6);
+            font-size: 18px;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            font-weight: 700;
-        }
-        .control-text {
-            color: #bbb;
-            font-size: 12px;
-            line-height: 2;
-        }
-        .control-text strong {
-            color: #ff6b6b;
-            font-weight: 700;
-        }
-        #mapTitle {
-            position: absolute;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(10, 17, 40, 0.96);
-            padding: 18px 35px;
-            border-radius: 12px;
-            border: 2px solid #d62828;
-            box-shadow: 0 0 30px rgba(214, 40, 40, 0.5), 0 4px 20px rgba(0,0,0,0.3);
-            font-size: 26px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            color: #d62828;
-            text-shadow: 0 0 15px rgba(214, 40, 40, 0.7);
-            backdrop-filter: blur(10px);
-            animation: pulse 3s ease-in-out infinite;
-        }
-        input[type="range"] {
-            -webkit-appearance: none;
-            appearance: none;
-            background: rgba(255,255,255,0.1);
-            border-radius: 5px;
-            outline: none;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            background: #d62828;
-            cursor: pointer;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(214, 40, 40, 0.5);
-            transition: all 0.3s;
-        }
-        input[type="range"]::-webkit-slider-thumb:hover {
-            background: #ff4757;
-            transform: scale(1.2);
-        }
-        input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            background: #d62828;
-            cursor: pointer;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(214, 40, 40, 0.5);
-            border: none;
         }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <div id="mapTitle">🧟 ERAS: ZOMBIE EUROPE 🧟</div>
-    <div id="ui">
+    <div id="stage">
+        <canvas id="map" width="1920" height="1080"></canvas>
+    </div>
+
+    <div id="hud" class="panel">
         <h2>🛡️ Command</h2>
-        <input type="text" id="playerName" placeholder="Enter your name" maxlength="15">
-        <button id="joinBtn">Join Battle</button>
-        <div id="lobbyInfo" style="display:none;">
-            <div class="stat"><span class="stat-label">Game starts in</span> <span class="stat-value" id="lobbyTimer">60</span>s</div>
-            <div class="stat"><span class="stat-label">Players</span> <span class="stat-value" id="lobbyPlayerCount">0</span></div>
-            <div class="stat"><span class="stat-label">Map</span> <span style="color: #aaa; font-size: 12px;" id="mapName">Europe</span></div>
+        <div class="stat">
+            <span class="stat-label">Territory</span>
+            <span class="stat-value" id="territory">0</span>
         </div>
-        <div id="spawnSelect" style="display:none;">
-            <p style="color: #aaa; font-size: 13px; margin: 10px 0;">Click a territory in Western Europe to spawn</p>
+        <div class="stat">
+            <span class="stat-label">Population</span>
+            <span class="stat-value" id="population">0</span>
         </div>
-        <div id="stats" style="display:none;">
-            <div class="stat"><span class="stat-label">Territory</span> <span class="stat-value" id="territory">0</span></div>
-            <div class="stat"><span class="stat-label">Population</span> <span class="stat-value" id="population">0</span></div>
-            <div class="stat"><span class="stat-label">Army</span> <span class="stat-value" id="army">0</span></div>
-            <div class="stat"><span class="stat-label">💰 Gold</span> <span class="stat-value" id="gold">100</span></div>
-            <div class="stat" style="margin-top: 15px;">
-                <span class="stat-label">Troop %</span>
-                <span class="stat-value" id="troopPercent">50</span>%
-            </div>
-            <input type="range" id="troopSlider" min="10" max="100" value="50" style="width: 100%; margin: 5px 0;">
+        <div class="stat">
+            <span class="stat-label">Army</span>
+            <span class="stat-value" id="army">0</span>
         </div>
-    </div>
-    <div id="leaderboard"><h2>🏆 Nations</h2><div id="players"></div></div>
-    <div id="controls" style="display:none;">
-        <div class="control-text">
-            <strong>LEFT CLICK</strong> to expand (sand-fill)<br>
-            <strong>RIGHT CLICK</strong> own territory for build menu<br>
-            <strong>SLIDER</strong> controls % troops per attack<br>
-            <strong>PVE:</strong> Defeat AI factions & zombies!
+        <div class="stat">
+            <span class="stat-label">Gold</span>
+            <span class="stat-value" id="gold">100</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Troop %</span>
+            <span class="stat-value" id="troopPct">50</span>
         </div>
     </div>
-    <div id="buildMenu" style="display:none; position: absolute; background: rgba(10, 17, 40, 0.98); border: 2px solid #d62828; border-radius: 8px; padding: 15px; min-width: 200px; box-shadow: 0 0 20px rgba(214, 40, 40, 0.5); z-index: 1000;">
-        <h3 style="color: #d62828; margin: 0 0 10px 0; font-size: 14px;">BUILD MENU</h3>
-        <div id="buildOptions"></div>
+
+    <div id="buildMenu" class="panel">
+        <h2>Build Menu</h2>
+        <button class="build-btn" onclick="game.buildDefense()">🛡️ Defense (+10 def)</button>
+        <button class="build-btn" onclick="game.buildCity()">🏛️ City (+20 gold)</button>
+        <button class="build-btn" onclick="game.buildFactory()">🏭 Factory (+10% army)</button>
     </div>
-    <div id="zoomControls"><button class="zoom-btn" id="zoomOut">−</button><button class="zoom-btn" id="zoomIn">+</button></div>
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        let socket, playerId = null;
-        let gameState = { players: {}, territories: [], activeAttacks: [], aiFactions: {}, gamePhase: 'lobby', lobbyTimer: 60, mapName: 'Europe' };
-        let zoom = 1.0, offsetX = 0, offsetY = 0;
-        let selectingSpawn = false;
-        let troopPercentage = 50;
-        let selectedTerritory = null;
 
-        const BUILDING_TYPES = {
-            city: { cost: 150, name: 'City', emoji: '🏛️', desc: '+8 gold/tick, +30 pop bonus' },
-            port: { cost: 200, name: 'Port', emoji: '⚓', desc: '+15 gold/tick, trade routes' },
-            train: { cost: 180, name: 'Train Station', emoji: '🚂', desc: '+50% expansion speed' },
-            factory: { cost: 250, name: 'Factory', emoji: '🏭', desc: '+40% army strength' },
-            defensepost: { cost: 300, name: 'Defense Post', emoji: '🏰', desc: '+50 defense power' },
-            missile: { cost: 500, name: 'Missile Silo', emoji: '🚀', desc: 'Launch long-range attacks' }
-        };
-        
-        document.getElementById('zoomIn').onclick = () => { zoom = Math.min(zoom * 1.2, 3.0); };
-        document.getElementById('zoomOut').onclick = () => { zoom = Math.max(zoom / 1.2, 0.5); };
-        
-        function connect() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            socket = new WebSocket(protocol + '//' + window.location.host);
-            socket.onopen = () => console.log('Connected');
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.type === 'init') { playerId = data.playerId; gameState = data.gameState; }
-                else if (data.type === 'update') { gameState = data.gameState; }
-                updateUI();
-            };
-            socket.onclose = () => setTimeout(connect, 2000);
-        }
-        
-        document.getElementById('joinBtn').onclick = () => {
-            const name = document.getElementById('playerName').value.trim() || 'Survivor';
-            socket.send(JSON.stringify({ type: 'join', name: name }));
-            document.getElementById('playerName').style.display = 'none';
-            document.getElementById('joinBtn').style.display = 'none';
-            document.getElementById('lobbyInfo').style.display = 'block';
-        };
-
-        document.getElementById('troopSlider').oninput = (e) => {
-            troopPercentage = parseInt(e.target.value);
-            document.getElementById('troopPercent').textContent = troopPercentage;
-            socket.send(JSON.stringify({ type: 'setTroopPercentage', percentage: troopPercentage }));
-        };
-        
-        canvas.onclick = (e) => {
-            if (!playerId) return;
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left - canvas.width / 2) / zoom + canvas.width / 2 - offsetX;
-            const y = (e.clientY - rect.top - canvas.height / 2) / zoom + canvas.height / 2 - offsetY;
-
-            for (let territory of gameState.territories) {
-                if (isPointInPolygon(x, y, territory.polygon)) {
-                    if (selectingSpawn) {
-                        // Spawn selection
-                        socket.send(JSON.stringify({ type: 'selectSpawn', territoryId: territory.id }));
-                        selectingSpawn = false;
-                        document.getElementById('spawnSelect').style.display = 'none';
-                        document.getElementById('stats').style.display = 'block';
-                        document.getElementById('controls').style.display = 'block';
-                    } else {
-                        // Attack territory
-                        socket.send(JSON.stringify({ type: 'attack', territoryId: territory.id }));
-                    }
-                    break;
-                }
-            }
-        };
-
-        canvas.oncontextmenu = (e) => {
-            e.preventDefault();
-            if (!playerId || selectingSpawn || gameState.gamePhase !== 'playing') return;
-
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left - canvas.width / 2) / zoom + canvas.width / 2 - offsetX;
-            const y = (e.clientY - rect.top - canvas.height / 2) / zoom + canvas.height / 2 - offsetY;
-
-            for (let territory of gameState.territories) {
-                if (isPointInPolygon(x, y, territory.polygon)) {
-                    // Show build menu on own territory
-                    if (territory.ownerId === playerId) {
-                        selectedTerritory = territory;
-                        showBuildMenu(e.clientX, e.clientY, territory);
-                    }
-                    break;
-                }
-            }
-            return false;
-        };
-
-        // Close menu on left click
-        canvas.addEventListener('click', () => {
-            document.getElementById('buildMenu').style.display = 'none';
-        });
-
-        function showBuildMenu(x, y, territory) {
-            const menu = document.getElementById('buildMenu');
-            const options = document.getElementById('buildOptions');
-            const player = gameState.players[playerId];
-
-            if (!player) return;
-
-            options.innerHTML = '';
-
-            // Defense option
-            if (territory.defense < 3) {
-                const defBtn = document.createElement('button');
-                defBtn.textContent = `🛡️ Defense Lv${territory.defense + 1} (30 troops)`;
-                defBtn.style.cssText = 'width: 100%; padding: 8px; margin: 4px 0; background: #2a4a5a; border: 1px solid #d62828; color: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;';
-                if (player.army < 30) defBtn.style.opacity = '0.5';
-                defBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (player.army >= 30) {
-                        socket.send(JSON.stringify({ type: 'buildDefense', territoryId: territory.id }));
-                        menu.style.display = 'none';
-                    }
-                };
-                options.appendChild(defBtn);
-            }
-
-            // Building options
-            Object.keys(BUILDING_TYPES).forEach(buildingType => {
-                const building = BUILDING_TYPES[buildingType];
-                if (territory.buildings && territory.buildings.includes(buildingType)) return;
-                if (territory.buildings && territory.buildings.length >= 3) return;
-
-                const btn = document.createElement('button');
-                btn.textContent = `${building.emoji} ${building.name} (${building.cost} gold)`;
-                btn.style.cssText = 'width: 100%; padding: 8px; margin: 4px 0; background: #2a4a5a; border: 1px solid #d62828; color: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;';
-                if (player.gold < building.cost) btn.style.opacity = '0.5';
-                btn.title = building.desc;
-                btn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (player.gold >= building.cost) {
-                        socket.send(JSON.stringify({ type: 'buildStructure', territoryId: territory.id, buildingType: buildingType }));
-                        menu.style.display = 'none';
-                    }
-                };
-                options.appendChild(btn);
-            });
-
-            menu.style.left = x + 'px';
-            menu.style.top = y + 'px';
-            menu.style.display = 'block';
-        }
-        
-        function isPointInPolygon(x, y, polygon) {
-            let inside = false;
-            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-                const xi = polygon[i][0], yi = polygon[i][1];
-                const xj = polygon[j][0], yj = polygon[j][1];
-                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-            return inside;
-        }
-        
-        function updateUI() {
-            // Update lobby timer
-            if (gameState.gamePhase === 'lobby') {
-                document.getElementById('lobbyTimer').textContent = gameState.lobbyTimer;
-                document.getElementById('lobbyPlayerCount').textContent = Object.keys(gameState.players).length;
-                document.getElementById('mapName').textContent = gameState.mapName || 'Europe';
-            }
-
-            // Check if game just started
-            if (gameState.gamePhase === 'playing' && document.getElementById('lobbyInfo').style.display !== 'none') {
-                document.getElementById('lobbyInfo').style.display = 'none';
-                document.getElementById('spawnSelect').style.display = 'block';
-                document.getElementById('controls').style.display = 'block';
-                selectingSpawn = true;
-            }
-
-            if (!playerId) return;
-            const player = gameState.players[playerId];
-            if (player) {
-                // Check if player selected spawn
-                if (player.spawnSelected && selectingSpawn) {
-                    selectingSpawn = false;
-                    document.getElementById('spawnSelect').style.display = 'none';
-                    document.getElementById('stats').style.display = 'block';
-                }
-
-                document.getElementById('territory').textContent = player.territories || 0;
-                document.getElementById('population').textContent = (player.population || 0).toLocaleString();
-                document.getElementById('army').textContent = (player.army || 0).toLocaleString();
-                document.getElementById('gold').textContent = (player.gold || 0).toLocaleString();
-            }
-
-            // Combine players and AI for leaderboard
-            const allEntities = [
-                ...Object.values(gameState.players),
-                ...Object.values(gameState.aiFactions || {})
-            ];
-            const playersList = allEntities.sort((a, b) => b.territories - a.territories).slice(0, 10);
-            document.getElementById('players').innerHTML = playersList.map((p, i) => {
-                const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                const aiLabel = p.isAI ? ' (AI)' : '';
-                return `<div class="player-entry" style="color: ${p.color}">${medal} ${p.name}${aiLabel} - ${p.territories} territories</div>`;
-            }).join('');
-        }
-        
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.save();
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.scale(zoom, zoom);
-            ctx.translate(-canvas.width / 2 + offsetX, -canvas.height / 2 + offsetY);
-
-            for (let territory of gameState.territories) {
-                const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
-                const owner = allPlayers[territory.ownerId];
-
-                if (territory.polygon && territory.polygon.length > 0) {
-                    ctx.beginPath();
-                    ctx.moveTo(territory.polygon[0][0], territory.polygon[0][1]);
-                    for (let i = 1; i < territory.polygon.length; i++) {
-                        ctx.lineTo(territory.polygon[i][0], territory.polygon[i][1]);
-                    }
-                    ctx.closePath();
-
-                    // Check if territory is being attacked (sand-fill effect)
-                    const activeAttack = gameState.activeAttacks?.find(a => a.territoryId === territory.id);
-                    const fillProgress = activeAttack ? activeAttack.progress : (territory.fillProgress || 0);
-
-                    if (territory.isWater) {
-                        // Water tiles - ocean blue gradient
-                        const gradient = ctx.createRadialGradient(territory.x, territory.y, 0, territory.x, territory.y, 40);
-                        gradient.addColorStop(0, '#1e5a7d');
-                        gradient.addColorStop(1, '#0d3b52');
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-                    } else if (territory.ownerId === 'zombie') {
-                        ctx.fillStyle = '#2d4a2e';
-                        ctx.fill();
-                    } else if (owner) {
-                        // Sand-fill style: show fill progress
-                        const fillPercent = Math.min(fillProgress / 100, 1);
-                        const gradient = ctx.createRadialGradient(territory.x, territory.y, 0, territory.x, territory.y, 80);
-                        gradient.addColorStop(0, owner.color + Math.floor(fillPercent * 255).toString(16).padStart(2, '0'));
-                        gradient.addColorStop(1, owner.color + Math.floor(fillPercent * 128).toString(16).padStart(2, '0'));
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-                    } else {
-                        // Neutral territory - greenish/brownish
-                        ctx.fillStyle = '#3a4a3a';
-                        ctx.fill();
-
-                        // Show fill progress if being captured
-                        if (activeAttack) {
-                            const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
-                            const attacker = allPlayers[activeAttack.playerId];
-                            if (attacker) {
-                                ctx.fillStyle = attacker.color + '60'; // Semi-transparent
-                                ctx.globalAlpha = fillProgress / 100;
-                                ctx.fill();
-                                ctx.globalAlpha = 1.0;
-                            }
-                        }
-                    }
-
-                    // Border
-                    if (selectingSpawn && territory.region === 'west' && !territory.ownerId && !territory.isWater) {
-                        ctx.strokeStyle = '#00ff00'; // Highlight spawn options
-                        ctx.lineWidth = 3;
-                    } else if (territory.isWater) {
-                        ctx.strokeStyle = '#0a2a3d'; // Dark water border
-                        ctx.lineWidth = 1;
-                    } else {
-                        ctx.strokeStyle = territory.ownerId === 'zombie' ? '#1a2f1b' : owner ? owner.color : '#2a3a2a';
-                        ctx.lineWidth = 2;
-                    }
-                    ctx.stroke();
-                }
-
-                // Show defense structures
-                if (territory.defense > 0 && territory.ownerId && territory.ownerId !== 'zombie') {
-                    for (let i = 0; i < territory.defense; i++) {
-                        ctx.fillStyle = '#ffd700';
-                        ctx.font = 'bold 16px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        const offsetXPos = (i - 1) * 15;
-                        ctx.fillText('🛡️', territory.x + offsetXPos, territory.y - 25);
-                    }
-                }
-
-                // Show buildings
-                if (territory.buildings && territory.buildings.length > 0 && territory.ownerId && territory.ownerId !== 'zombie') {
-                    territory.buildings.forEach((buildingType, i) => {
-                        const building = BUILDING_TYPES[buildingType];
-                        if (building) {
-                            ctx.fillStyle = '#ffd700';
-                            ctx.font = 'bold 14px Arial';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            const offsetXPos = (i - 0.5) * 20;
-                            ctx.fillText(building.emoji, territory.x + offsetXPos - 10, territory.y + 25);
-                        }
-                    });
-                }
-
-                // Zombie emoji
-                if (territory.ownerId === 'zombie') {
-                    ctx.fillStyle = '#8fb339';
-                    ctx.font = 'bold 20px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('🧟', territory.x, territory.y);
-                }
-
-                // Population number
-                if (territory.population > 0 && territory.ownerId && territory.ownerId !== 'zombie') {
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 13px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
-                    ctx.shadowBlur = 3;
-                    ctx.fillText(territory.population, territory.x, territory.y);
-                    ctx.shadowBlur = 0;
-                }
-
-                // Country name (skip for water)
-                if (territory.countryName && !territory.isWater) {
-                    ctx.fillStyle = '#888';
-                    ctx.font = '9px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.fillText(territory.countryName, territory.x, territory.y - 20);
-                }
-
-                // Show attack progress bar
-                if (activeAttack) {
-                    const allPlayers = { ...gameState.players, ...(gameState.aiFactions || {}) };
-                    const attacker = allPlayers[activeAttack.playerId];
-                    if (attacker) {
-                        const barWidth = 60;
-                        const barHeight = 6;
-                        const barX = territory.x - barWidth / 2;
-                        const barY = territory.y + 20;
-
-                        // Background
-                        ctx.fillStyle = '#333';
-                        ctx.fillRect(barX, barY, barWidth, barHeight);
-
-                        // Progress
-                        ctx.fillStyle = attacker.color;
-                        ctx.fillRect(barX, barY, (barWidth * activeAttack.progress) / 100, barHeight);
-
-                        // Border
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 1;
-                        ctx.strokeRect(barX, barY, barWidth, barHeight);
-                    }
-                }
-            }
-
-            ctx.restore();
-            requestAnimationFrame(render);
-        }
-        
-        connect();
-        render();
-    </script>
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>
