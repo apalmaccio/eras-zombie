@@ -1,8 +1,14 @@
 {
   "name": "eras-zombie",
   "version": "1.0.0",
+  "private": true,
   "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
   "dependencies": {
-    "ws": "^8.14.2"
+    "express": "^4.19.2",
+    "compression": "^1.7.4"
   }
 }
