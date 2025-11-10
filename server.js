@@ -232,7 +232,6 @@ const BUILDING_TYPES = {
 
 function initTerritories() {
     gameState.territories = []; // Clear existing
-    gameState.aiFactions = {}; // Clear AI factions
 
     europeRegions.forEach((region, id) => {
         const isWater = region.type === 'water';
@@ -253,6 +252,10 @@ function initTerritories() {
             region: region.region
         });
     });
+}
+
+function initAIAndZombies() {
+    gameState.aiFactions = {}; // Clear AI factions
 
     // Create neutral AI factions in central/eastern Europe
     const aiColors = ['#9b59b6', '#e67e22', '#16a085', '#c0392b'];
@@ -300,7 +303,8 @@ function initTerritories() {
     });
 }
 
-// Don't initialize until game starts
+// Initialize territories immediately so players can see the map
+initTerritories();
 
 function broadcast(data) {
     const message = JSON.stringify(data);
@@ -592,7 +596,7 @@ setInterval(() => {
         if (gameState.lobbyTimer <= 0 || Object.keys(gameState.players).length >= 8) {
             // Start game
             gameState.gamePhase = 'playing';
-            initTerritories();
+            initAIAndZombies(); // Initialize AI factions and zombies
             console.log('🎮 Game starting with ' + Object.keys(gameState.players).length + ' players!');
         }
 
